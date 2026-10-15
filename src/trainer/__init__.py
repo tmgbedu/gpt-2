@@ -1,0 +1,243 @@
+import json
+import math
+import os
+import tempfile
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+
+from data import get_batch, load_tokens
+from model.transformer import Keera, ModelConfig
+
+Batch = tuple[torch.Tensor, torch.Tensor]
+
+
+@dataclass
+class TrainConfig:
+    data_dir: str = "data/smoke"
+    out_dir: str = "checkpoints/smoke"
+    micro_batch: int = 2  # sequences per forward/backward; M3 Pro 18 GB is GPU-bound already at 1
+    block_size: int = 1024
+    grad_accum: int = 16  # microbatches per optimizer step (32K tokens)
+    max_steps: int = 1000  # optimizer steps
+    warmup_steps: int = 100
+    max_lr: float = 6e-4
+    min_lr: float = 6e-5
+    weight_decay: float = 0.1
+    beta1: float = 0.9
+    beta2: float = 0.95
+    grad_clip: float = 1.0
+    eval_interval: int = 100
+    eval_batches: int = 20
+    checkpoint_interval: int = 100
+    keep_every: int = 0  # also keep weights-only step_NNNNNN.pt every N steps; 0 = off
+    log_interval: int = 10
+    seed: int = 1234
+    device: str = "mps"
+    precision: str = "fp32"  # or "bf16" autocast; measured no faster on M3 Pro MPS
+
+
+def make_optimizer(model: nn.Module, cfg: TrainConfig) -> torch.optim.AdamW:
+    """AdamW with weight decay on matrices only; RMSNorm weights (vectors) are not decayed."""
+    params = list(model.parameters())  # deduplicated, so the tied matrix appears once
+    decay = [p for p in params if p.ndim >= 2]
+    no_decay = [p for p in params if p.ndim < 2]
+    return torch.optim.AdamW(
+        [
+            {"params": decay, "weight_decay": cfg.weight_decay},
+            {"params": no_decay, "weight_decay": 0.0},
+        ],
+        lr=cfg.max_lr,
+        betas=(cfg.beta1, cfg.beta2),
+    )
+
+
+def lr_at(step: int, cfg: TrainConfig) -> float:
+    """Learning rate for optimizer step `step` (0-based): linear warmup, then cosine to min_lr."""
+    if step < cfg.warmup_steps:
+        return cfg.max_lr * (step + 1) / cfg.warmup_steps
+    progress = (step - cfg.warmup_steps) / max(1, cfg.max_steps - 1 - cfg.warmup_steps)
+    progress = min(progress, 1.0)
+    return cfg.min_lr + 0.5 * (1 + math.cos(math.pi * progress)) * (cfg.max_lr - cfg.min_lr)
+
+
+def _autocast(device: torch.device, precision: str):
+    if precision not in ("bf16", "fp32"):
+        raise ValueError(f"precision must be 'bf16' or 'fp32', got {precision!r}")
+    return torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=precision == "bf16")
+
+
+def _device(model: nn.Module) -> torch.device:
+    return next(model.parameters()).device
+
+
+def forward_backward(model: nn.Module, batches: list[Batch], precision: str) -> float:
+    """Accumulate gradients over microbatches; returns the mean loss.
+
+    Each microbatch loss is divided by the number of microbatches, so the summed
+    gradient equals the gradient of the mean loss over all of them.
+    """
+    device = _device(model)
+    total = torch.zeros((), device=device)
+    for x, y in batches:
+        with _autocast(device, precision):
+            _, loss = model(x, y)
+        loss = loss / len(batches)
+        loss.backward()
+        total += loss.detach()
+    return total.item()
+
+
+def optimizer_step(model: nn.Module, opt: torch.optim.Optimizer, lr: float, grad_clip: float) -> float:
+    """Clip the accumulated gradient, set the lr, update, clear grads. Returns the pre-clip norm."""
+    norm = nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+    for group in opt.param_groups:
+        group["lr"] = lr
+    opt.step()
+    opt.zero_grad(set_to_none=True)
+    return norm.item()
+
+
+def fixed_batches(tokens: np.ndarray, n: int, batch_size: int, block_size: int, seed: int) -> list[Batch]:
+    """The same validation batches every time, so val losses are comparable across steps."""
+    gen = torch.Generator().manual_seed(seed)
+    return [get_batch(tokens, batch_size, block_size, generator=gen) for _ in range(n)]
+
+
+@torch.no_grad()
+def evaluate(model: nn.Module, batches: list[Batch], precision: str) -> float:
+    was_training = model.training
+    model.eval()
+    device = _device(model)
+    total = 0.0
+    for x, y in batches:
+        with _autocast(device, precision):
+            _, loss = model(x.to(device), y.to(device))
+        total += loss.item()
+    model.train(was_training)
+    return total / len(batches)
+
+
+def save_checkpoint(state: dict, path: str | Path) -> None:
+    """Write to a temp file next to `path`, then rename: never a half-written checkpoint."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            torch.save(state, f)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def load_checkpoint(path: str | Path) -> dict:
+    return torch.load(path, map_location="cpu", weights_only=True)
+
+
+def _truncate_log(path: Path, last_step: int) -> None:
+    """Drop log lines past the checkpoint; those steps will be run again."""
+    if not path.exists():
+        return
+    lines = [ln for ln in path.read_text().splitlines() if json.loads(ln)["step"] <= last_step]
+    path.write_text("".join(ln + "\n" for ln in lines))
+
+
+def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) -> list[dict]:
+    """Train until cfg.max_steps, resuming from <out_dir>/checkpoint.pt if it exists.
+
+    `stop_at` ends the call early after that step (used to simulate an interruption).
+    Returns one record per optimizer step run in this call.
+    """
+    device = torch.device(cfg.device)
+    out_dir = Path(cfg.out_dir)
+    ckpt_path, log_path = out_dir / "checkpoint.pt", out_dir / "log.jsonl"
+    train_data = load_tokens(Path(cfg.data_dir) / "train.bin")
+    val_data = load_tokens(Path(cfg.data_dir) / "val.bin")
+
+    torch.manual_seed(cfg.seed)
+    model = Keera(model_cfg).to(device)
+    opt = make_optimizer(model, cfg)
+    batch_gen = torch.Generator().manual_seed(cfg.seed)  # the sampler: its state is our data position
+    step = tokens = 0
+
+    if ckpt_path.exists():
+        ckpt = load_checkpoint(ckpt_path)
+        if ckpt["train_config"] != asdict(cfg) or ckpt["model_config"] != asdict(model_cfg):
+            raise ValueError(f"{ckpt_path} was made with a different config; use a new out_dir")
+        model.load_state_dict(ckpt["model"])
+        opt.load_state_dict(ckpt["optimizer"])
+        batch_gen.set_state(ckpt["batch_rng"])
+        torch.set_rng_state(ckpt["torch_rng"])
+        step, tokens = ckpt["step"], ckpt["tokens"]
+        _truncate_log(log_path, step)
+
+    val_batches = fixed_batches(val_data, cfg.eval_batches, cfg.micro_batch, cfg.block_size, cfg.seed + 1)
+    tokens_per_step = cfg.grad_accum * cfg.micro_batch * cfg.block_size
+    out_dir.mkdir(parents=True, exist_ok=True)
+    history = []
+    model.train()
+
+    while step < cfg.max_steps:
+        t0 = time.perf_counter()
+        batches = [
+            get_batch(train_data, cfg.micro_batch, cfg.block_size, device, batch_gen)
+            for _ in range(cfg.grad_accum)
+        ]
+        loss = forward_backward(model, batches, cfg.precision)
+        lr = lr_at(step, cfg)
+        grad_norm = optimizer_step(model, opt, lr, cfg.grad_clip)
+        step += 1
+        tokens += tokens_per_step
+        step_seconds = time.perf_counter() - t0
+        record = {
+            "step": step, "tokens": tokens, "loss": loss, "lr": lr, "grad_norm": grad_norm,
+            "step_seconds": step_seconds, "tokens_per_sec": tokens_per_step / step_seconds,
+        }
+
+        last = step == cfg.max_steps
+        if step % cfg.eval_interval == 0 or last:
+            t = time.perf_counter()
+            record["val_loss"] = evaluate(model, val_batches, cfg.precision)
+            record["eval_seconds"] = time.perf_counter() - t
+        if step % cfg.checkpoint_interval == 0 or last:
+            t = time.perf_counter()
+            save_checkpoint(
+                {
+                    "model": model.state_dict(),
+                    "optimizer": opt.state_dict(),
+                    "step": step,
+                    "tokens": tokens,
+                    "batch_rng": batch_gen.get_state(),
+                    "torch_rng": torch.get_rng_state(),
+                    "train_config": asdict(cfg),
+                    "model_config": asdict(model_cfg),
+                },
+                ckpt_path,
+            )
+            record["checkpoint_seconds"] = time.perf_counter() - t
+        if cfg.keep_every and step % cfg.keep_every == 0:
+            # Weights only (no optimizer): for sampling/evaluating this stage later, not for resuming.
+            save_checkpoint(
+                {"model": model.state_dict(), "model_config": asdict(model_cfg), "step": step, "tokens": tokens},
+                out_dir / f"step_{step:06d}.pt",
+            )
+
+        history.append(record)
+        if step % cfg.log_interval == 0 or "val_loss" in record or last:
+            with log_path.open("a") as f:
+                f.write(json.dumps(record) + "\n")
+            print(
+                f"step {step:>6} | loss {loss:.4f} | lr {lr:.2e} | grad {grad_norm:.2f} | "
+                f"{record['tokens_per_sec']:,.0f} tok/s"
+                + (f" | val {record['val_loss']:.4f}" if "val_loss" in record else ""),
+                flush=True,
+            )
+        if stop_at is not None and step >= stop_at:
+            break
+    return history

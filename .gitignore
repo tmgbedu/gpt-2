@@ -14,5 +14,5 @@ wheels/
 .DS_Store
 
 # Training data and model checkpoints (large, regenerable)
-data/
-checkpoints/
+/data/
+/checkpoints/

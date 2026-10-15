@@ -1,0 +1,21 @@
+{
+  "settings": {
+    "train_dataset": "codeparrot/codeparrot-clean-train",
+    "valid_dataset": "codeparrot/codeparrot-clean-valid",
+    "num_files": 200000,
+    "max_bytes": 100000,
+    "vocab_size": 16384,
+    "seed": 1234,
+    "shuffle_buffer": 10000,
+    "valid_files": 1000
+  },
+  "train_files": 200000,
+  "valid_stats": {
+    "files": 1000,
+    "chars": 8573946,
+    "tokens": 2193334,
+    "chars_per_token": 3.9090927327985616,
+    "indent_runs": 163971,
+    "tokens_per_indent_run": 1.0021223265089558
+  }
+}

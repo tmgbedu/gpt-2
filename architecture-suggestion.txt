@@ -1,0 +1,4 @@
+FIM is still listed as a pretraining objective in box 1 and in the config table.
+The vocab size is still "~16,000". I'd fix it at 16,384 and list the special tokens.
+Box 3 is still called "Later benchmarks", and there's no real evaluation step (validation loss, HumanEval, MBPP).
+There's no chat template for SFT yet.

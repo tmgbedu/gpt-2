@@ -5,7 +5,15 @@ import numpy as np
 import pytest
 import torch
 
-from data import encode_documents, file_sha256, get_batch, load_tokens, write_token_file
+from data import (
+    encode_documents,
+    file_sha256,
+    get_batch,
+    load_tokens,
+    random_starts,
+    windows,
+    write_token_file,
+)
 from test_tokenizer import FIXTURE_VOCAB_SIZE, _python_corpus
 from tokenizer import EOT_ID, train_tokenizer
 
@@ -132,6 +140,16 @@ def test_batches_stay_in_bounds(token_file):
     for _ in range(50):
         x, y = get_batch(tokens, batch_size=16, block_size=999, generator=gen)
         assert x.min() >= 0 and y.max() <= 999
+
+
+def test_batch_is_random_starts_then_windows(token_file):
+    # Multi-GPU training draws every rank's starts from one shared generator, then each
+    # rank builds windows for its own share. Same random stream as get_batch.
+    tokens = load_tokens(token_file)
+    x, y = get_batch(tokens, 4, 16, generator=torch.Generator().manual_seed(3))
+    starts = random_starts(tokens, 4, 16, torch.Generator().manual_seed(3))
+    x2, y2 = windows(tokens, starts, 16)
+    assert torch.equal(x, x2) and torch.equal(y, y2)
 
 
 def test_batch_rejects_block_longer_than_data(token_file):

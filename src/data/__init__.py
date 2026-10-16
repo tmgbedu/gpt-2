@@ -102,9 +102,24 @@ def get_batch(
     generator: torch.Generator | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Random windows from the token stream: x = tokens[i:i+T], y = tokens[i+1:i+T+1]."""
+    return windows(data, random_starts(data, batch_size, block_size, generator), block_size, device)
+
+
+def random_starts(
+    data: np.ndarray, batch_size: int, block_size: int, generator: torch.Generator | None = None
+) -> list[int]:
+    """Where each window begins. Drawing these is cheap; reading the tokens is not."""
     if block_size >= len(data):
         raise ValueError(f"block_size {block_size} needs more than {len(data)} tokens")
-    starts = torch.randint(len(data) - block_size, (batch_size,), generator=generator).tolist()
+    return torch.randint(len(data) - block_size, (batch_size,), generator=generator).tolist()
+
+
+def windows(
+    data: np.ndarray, starts: list[int], block_size: int, device: str | torch.device = "cpu"
+) -> tuple[torch.Tensor, torch.Tensor]:
     x = torch.from_numpy(np.stack([data[i : i + block_size] for i in starts]).astype(np.int64))
     y = torch.from_numpy(np.stack([data[i + 1 : i + 1 + block_size] for i in starts]).astype(np.int64))
+    if torch.device(device).type == "cuda":
+        # Page-locked memory lets the copy to the GPU overlap with compute.
+        return x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
     return x.to(device), y.to(device)

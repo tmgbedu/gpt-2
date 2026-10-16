@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 from dataclasses import replace
@@ -278,3 +279,30 @@ def test_cli_help_runs_as_installed_module():
                             capture_output=True, text=True, env=env, cwd=Path(__file__).parent)
     assert result.returncode == 0, result.stderr
     assert "--grad-accum" in result.stdout
+    assert "--compile, --no-compile" in result.stdout  # booleans are flags, not "--compile False"
+
+
+def test_cli_trains_with_two_processes_under_torchrun(data_dir, tmp_path):
+    # The exact launch used on a multi-GPU machine, with CPU processes standing in for GPUs.
+    # Uses the real 97.5M model on 16-token windows, so it stays quick.
+    out = tmp_path / "run"
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"} | {"OMP_NUM_THREADS": "1"}
+    if sys.platform == "darwin":
+        env["GLOO_SOCKET_IFNAME"] = "lo0"  # gloo picks a broken interface on macOS otherwise
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "torch.distributed.run", "--nproc-per-node", "2",
+         "--master-addr", "127.0.0.1", "--master-port", str(port),
+         "-m", "trainer.train", "--device", "cpu", "--data-dir", str(data_dir), "--out-dir", str(out),
+         "--micro-batch", "1", "--block-size", "16", "--grad-accum", "2", "--max-steps", "2",
+         "--warmup-steps", "1", "--eval-interval", "2", "--eval-batches", "1",
+         "--checkpoint-interval", "2", "--log-interval", "1"],
+        capture_output=True, text=True, env=env, cwd=Path(__file__).parent, timeout=300,
+    )
+    assert result.returncode == 0, result.stderr[-3000:]
+    assert "2 process(es) on cpu" in result.stdout
+    log = [json.loads(line) for line in (out / "log.jsonl").read_text().splitlines()]
+    assert [r["step"] for r in log] == [1, 2]
+    assert load_checkpoint(out / "checkpoint.pt")["step"] == 2

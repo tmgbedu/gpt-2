@@ -1,3 +1,4 @@
+import contextlib
 import json
 import math
 import os
@@ -8,9 +9,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from torch import nn
+from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data import get_batch, load_tokens
+from data import get_batch, load_tokens, random_starts, windows
 from model.transformer import Keera, ModelConfig
 
 Batch = tuple[torch.Tensor, torch.Tensor]
@@ -37,8 +40,9 @@ class TrainConfig:
     keep_every: int = 0  # also keep weights-only step_NNNNNN.pt every N steps; 0 = off
     log_interval: int = 10
     seed: int = 1234
-    device: str = "mps"
+    device: str = "mps"  # or "cuda" (each process uses GPU number LOCAL_RANK) or "cpu"
     precision: str = "fp32"  # or "bf16" autocast; measured no faster on M3 Pro MPS
+    compile: bool = False  # torch.compile the model: faster on NVIDIA GPUs after a slow first step
 
 
 def make_optimizer(model: nn.Module, cfg: TrainConfig) -> torch.optim.AdamW:
@@ -80,16 +84,38 @@ def forward_backward(model: nn.Module, batches: list[Batch], precision: str) -> 
 
     Each microbatch loss is divided by the number of microbatches, so the summed
     gradient equals the gradient of the mean loss over all of them.
+
+    With several GPUs (`model` wrapped in DDP), the last backward also averages the
+    gradient across GPUs; the earlier ones skip that (`no_sync`), since only the
+    final sum needs sending. The returned loss is then averaged across GPUs too.
     """
     device = _device(model)
     total = torch.zeros((), device=device)
-    for x, y in batches:
-        with _autocast(device, precision):
-            _, loss = model(x, y)
-        loss = loss / len(batches)
-        loss.backward()
+    for i, (x, y) in enumerate(batches):
+        last = i == len(batches) - 1
+        sync = contextlib.nullcontext() if last or not isinstance(model, DDP) else model.no_sync()
+        with sync:
+            with _autocast(device, precision):
+                _, loss = model(x, y)
+            loss = loss / len(batches)
+            loss.backward()
         total += loss.detach()
+    if isinstance(model, DDP):
+        dist.all_reduce(total)  # sum over GPUs (AVG isn't available on CPU backends)
+        total /= dist.get_world_size()
     return total.item()
+
+
+def rank_share(grad_accum: int, rank: int, world_size: int) -> slice:
+    """Which of the step's microbatches this process runs: an equal, contiguous share.
+
+    Every process draws the same list of microbatch positions, then keeps only its own
+    share, so N GPUs together see exactly the batch one GPU would have seen alone.
+    """
+    if grad_accum % world_size:
+        raise ValueError(f"grad_accum {grad_accum} must divide evenly between {world_size} GPUs")
+    per_rank = grad_accum // world_size
+    return slice(rank * per_rank, (rank + 1) * per_rank)
 
 
 def optimizer_step(model: nn.Module, opt: torch.optim.Optimizer, lr: float, grad_clip: float) -> float:
@@ -148,13 +174,30 @@ def _truncate_log(path: Path, last_step: int) -> None:
     path.write_text("".join(ln + "\n" for ln in lines))
 
 
+def _setup_device(name: str) -> torch.device:
+    if name != "cuda":
+        return torch.device(name)
+    device = torch.device("cuda", int(os.environ.get("LOCAL_RANK", 0)))
+    torch.cuda.set_device(device)
+    torch.backends.cuda.matmul.allow_tf32 = True  # fp32 matmuls on tensor cores (bf16 runs too)
+    torch.backends.cudnn.allow_tf32 = True
+    return device
+
+
 def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) -> list[dict]:
     """Train until cfg.max_steps, resuming from <out_dir>/checkpoint.pt if it exists.
 
     `stop_at` ends the call early after that step (used to simulate an interruption).
     Returns one record per optimizer step run in this call.
+
+    Multi-GPU: launch one process per GPU (torchrun) after init_process_group. Each
+    process holds a full copy of the model; only process 0 writes logs and checkpoints.
     """
-    device = torch.device(cfg.device)
+    distributed = dist.is_available() and dist.is_initialized()
+    rank, world_size = (dist.get_rank(), dist.get_world_size()) if distributed else (0, 1)
+    main_process = rank == 0
+    share = rank_share(cfg.grad_accum, rank, world_size)
+    device = _setup_device(cfg.device)
     out_dir = Path(cfg.out_dir)
     ckpt_path, log_path = out_dir / "checkpoint.pt", out_dir / "log.jsonl"
     train_data = load_tokens(Path(cfg.data_dir) / "train.bin")
@@ -175,21 +218,32 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
         batch_gen.set_state(ckpt["batch_rng"])
         torch.set_rng_state(ckpt["torch_rng"])
         step, tokens = ckpt["step"], ckpt["tokens"]
-        _truncate_log(log_path, step)
+        if main_process:
+            _truncate_log(log_path, step)
+
+    # `model` stays the plain module: its weights are what we save and evaluate.
+    # `runner` is what training calls: optionally compiled, and wrapped in DDP across GPUs.
+    runner = torch.compile(model) if cfg.compile else model
+    if distributed:
+        runner = DDP(runner, device_ids=[device.index] if device.type == "cuda" else None)
 
     val_batches = fixed_batches(val_data, cfg.eval_batches, cfg.micro_batch, cfg.block_size, cfg.seed + 1)
     tokens_per_step = cfg.grad_accum * cfg.micro_batch * cfg.block_size
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if main_process:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        print(f"{world_size} process(es) on {device.type} | {tokens_per_step:,} tokens/step | "
+              f"{share.stop - share.start} microbatches of {cfg.micro_batch} per process", flush=True)
     history = []
     model.train()
 
     while step < cfg.max_steps:
         t0 = time.perf_counter()
-        batches = [
-            get_batch(train_data, cfg.micro_batch, cfg.block_size, device, batch_gen)
-            for _ in range(cfg.grad_accum)
-        ]
-        loss = forward_backward(model, batches, cfg.precision)
+        # All processes draw the whole step's positions (same generator, same state), so the
+        # data order doesn't depend on the number of GPUs; each reads only its own share.
+        starts = [random_starts(train_data, cfg.micro_batch, cfg.block_size, batch_gen)
+                  for _ in range(cfg.grad_accum)]
+        batches = [windows(train_data, s, cfg.block_size, device) for s in starts[share]]
+        loss = forward_backward(runner, batches, cfg.precision)
         lr = lr_at(step, cfg)
         grad_norm = optimizer_step(model, opt, lr, cfg.grad_clip)
         step += 1
@@ -205,7 +259,7 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
             t = time.perf_counter()
             record["val_loss"] = evaluate(model, val_batches, cfg.precision)
             record["eval_seconds"] = time.perf_counter() - t
-        if step % cfg.checkpoint_interval == 0 or last:
+        if main_process and (step % cfg.checkpoint_interval == 0 or last):
             t = time.perf_counter()
             save_checkpoint(
                 {
@@ -221,7 +275,7 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
                 ckpt_path,
             )
             record["checkpoint_seconds"] = time.perf_counter() - t
-        if cfg.keep_every and step % cfg.keep_every == 0:
+        if main_process and cfg.keep_every and step % cfg.keep_every == 0:
             # Weights only (no optimizer): for sampling/evaluating this stage later, not for resuming.
             save_checkpoint(
                 {"model": model.state_dict(), "model_config": asdict(model_cfg), "step": step, "tokens": tokens},
@@ -229,7 +283,7 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
             )
 
         history.append(record)
-        if step % cfg.log_interval == 0 or "val_loss" in record or last:
+        if main_process and (step % cfg.log_interval == 0 or "val_loss" in record or last):
             with log_path.open("a") as f:
                 f.write(json.dumps(record) + "\n")
             print(

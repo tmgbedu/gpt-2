@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "keera-agent-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:4545/mcp",
+      "headers": {
+        "X-Project-Path": "/Users/ellite/code/salut-keera/rx"
+      }
+    }
+  }
+}

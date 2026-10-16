@@ -1,0 +1,95 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/claude-stopped",
+            "headers": {
+              "X-Keera-Agent-Id": "$KEERA_AGENT_ID"
+            },
+            "allowedEnvVars": [
+              "KEERA_AGENT_ID"
+            ]
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/claude-started"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/agent-hook-events",
+            "headers": {
+              "X-Keera-Agent-Id": "$KEERA_AGENT_ID"
+            },
+            "allowedEnvVars": [
+              "KEERA_AGENT_ID"
+            ]
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/agent-hook-events",
+            "headers": {
+              "X-Keera-Agent-Id": "$KEERA_AGENT_ID"
+            },
+            "allowedEnvVars": [
+              "KEERA_AGENT_ID"
+            ]
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/agent-hook-events",
+            "headers": {
+              "X-Keera-Agent-Id": "$KEERA_AGENT_ID"
+            },
+            "allowedEnvVars": [
+              "KEERA_AGENT_ID"
+            ]
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|elicitation_dialog",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "http://127.0.0.1:4545/api/agent-hook-events",
+            "headers": {
+              "X-Keera-Agent-Id": "$KEERA_AGENT_ID"
+            },
+            "allowedEnvVars": [
+              "KEERA_AGENT_ID"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "defaultMode": "acceptEdits"
+}

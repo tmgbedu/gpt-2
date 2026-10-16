@@ -2,6 +2,7 @@
 
     uv run python -m sample --prompt "def fibonacci(n):"
     uv run python -m sample --prompt-file start.py --samples 3 --temperature 0.6
+    uv run python -m sample -i        # type prompts one after another; Enter twice runs one
 """
 
 import argparse
@@ -10,14 +11,14 @@ from pathlib import Path
 import torch
 
 from model.transformer import Keera, ModelConfig
-from sample import generate
+from sample import generate, read_prompt, trim_to_block
 from tokenizer import load_tokenizer
 from trainer import load_checkpoint
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/smoke/checkpoint.pt"))
+    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/run-2b/checkpoint.pt"))
     parser.add_argument("--tokenizer", type=Path, default=Path("artifacts/tokenizer/tokenizer.json"))
     parser.add_argument("--prompt", default="def ", help="code to continue (\\n and \\t are understood)")
     parser.add_argument("--prompt-file", type=Path, help="read the prompt from a file instead")
@@ -27,9 +28,10 @@ def main() -> None:
     parser.add_argument("--samples", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cpu", help="cpu keeps the GPU free for training")
+    parser.add_argument("-i", "--interactive", action="store_true", help="keep asking for prompts")
+    parser.add_argument("--full", action="store_true", help="don't stop where the function ends")
     args = parser.parse_args()
 
-    prompt = args.prompt_file.read_text() if args.prompt_file else args.prompt.encode().decode("unicode_escape")
     tok = load_tokenizer(args.tokenizer)
     ckpt = load_checkpoint(args.checkpoint)
     model = Keera(ModelConfig(**ckpt["model_config"]))
@@ -37,12 +39,24 @@ def main() -> None:
     model.to(args.device)
     print(f"# {args.checkpoint} | step {ckpt['step']} | {ckpt['tokens']:,} tokens trained\n")
 
-    prompt_ids = tok.encode(prompt).ids
     gen = torch.Generator().manual_seed(args.seed)
-    for i in range(args.samples):
-        new = generate(model, prompt_ids, args.max_new_tokens, args.temperature, args.top_k, generator=gen)
-        print(f"# --- sample {i + 1} ---")
-        print(prompt + tok.decode(new, skip_special_tokens=False))
+
+    def complete(prompt: str) -> None:
+        for i in range(args.samples):
+            new = generate(model, tok.encode(prompt).ids, args.max_new_tokens, args.temperature, args.top_k,
+                           generator=gen)
+            text = tok.decode(new, skip_special_tokens=False)
+            print(f"# --- sample {i + 1} ---")
+            print(prompt + (text if args.full else trim_to_block(text)))
+
+    if not args.interactive:
+        complete(args.prompt_file.read_text() if args.prompt_file
+                 else args.prompt.encode().decode("unicode_escape"))
+        return
+    print("Type or paste code, then press Enter on an empty line. Ctrl-D quits.\n")
+    while (prompt := read_prompt(lambda: input(">>> "))) is not None:
+        complete(prompt)
+        print()
 
 
 if __name__ == "__main__":

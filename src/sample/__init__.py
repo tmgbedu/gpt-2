@@ -42,3 +42,43 @@ def generate(
         if nxt == stop_id:
             break
     return new
+
+
+EOT_TEXT = "<|endoftext|>"
+CONTINUES_BLOCK = ("else", "elif", "except", "finally")
+
+
+def trim_to_block(completion: str) -> str:
+    """Cut a completion where the code block it started ends.
+
+    The block ends at the next line that starts at column 0 (a new def, class,
+    statement...), except else/elif/except/finally, which belong to the block.
+    The first non-blank line is always kept, and the end-of-file token ends it too.
+    """
+    cut = EOT_TEXT in completion
+    completion = completion.split(EOT_TEXT)[0]
+    kept: list[str] = []
+    seen_code = False
+    for line in completion.splitlines(keepends=True):
+        top_level = line.strip() and not line[0].isspace()
+        if seen_code and top_level and not line.startswith(CONTINUES_BLOCK):
+            cut = True
+            break
+        kept.append(line)
+        seen_code = seen_code or bool(line.strip())
+    text = "".join(kept)
+    return text.rstrip() + "\n" if cut else text
+
+
+def read_prompt(read_line=input) -> str | None:
+    """Read typed lines until an empty line; None when input ends (Ctrl-D)."""
+    lines: list[str] = []
+    while True:
+        try:
+            line = read_line()
+        except EOFError:
+            return "\n".join(lines) + "\n" if lines else None
+        if line == "" and lines:
+            return "\n".join(lines) + "\n"
+        if line != "":
+            lines.append(line)

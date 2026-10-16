@@ -149,3 +149,38 @@ def parse_args():                         # prompt: import argparse + def parse_
 Real API used correctly (`add_argument`, `action='store_true'`); content is nonsense and repeats.
 Same pattern for a `User` class (`__str__`, `__eq__` that recurses forever), a Flask route
 (`@app.route` + `jsonify`, then "auth/auth/auth…"), and an `os` script (`try: os.makedirs … except OSError`).
+
+---
+
+## 2026-10-16 — Rented RTX 5090 (Vast.ai, Estonia, $0.584/h on-demand)
+
+- Image `vastai/base-image:cuda-13.2.1-auto`; host driver 580.95 (CUDA 13.0), 128 CPU cores, 50 GB disk.
+- Code copied with `git archive HEAD` over SSH (no tokens or keys on the machine).
+- `gpu.sh setup`: torch 2.14.1+cu130 sees the GPU; 106 passed, 9 skipped (7 need an Apple GPU,
+  1 needs 2+ NVIDIA GPUs). The CUDA bf16 test passed.
+- `gpu.sh bench` (bf16, `torch.compile`, micro-batch 16 × 32 = 524,288 tokens/step):
+  **~236,300 tok/s**, 77× the M3 Pro (3,055 tok/s). 2.2 s per step.
+- Estimate for 2B tokens: 2e9 ÷ 236,300 ÷ 3600 ≈ **2.35 h ≈ $1.40**.
+- Lesson: the Vast web UI defaulted to *interruptible* (bid) rentals — two instances were
+  "Outbid" (paused) before starting. Choose **On-Demand** for runs that must finish.
+
+### Run 2 result — 2B tokens (run-2b), finished
+
+- 3,815 steps × 524,288 tokens, warmup 200, cosine LR 6e-4 → 6e-5. Ran 05:39 → 08:02
+  (**2 h 23 min**, ~234,000 tok/s, GPU 99%, 9.6 GB VRAM). No errors. Training cost ≈ **$1.40**.
+- Final: **val 1.5009**, train 1.435 (100M run on the laptop: val 2.125).
+- Final checkpoint copied to `checkpoints/run-2b/checkpoint.pt` (1.17 GB, sha256 `bcd3d2f9…717f6`,
+  loads with step 3815). Milestones `step_000500 … step_003500` were left on the rented machine.
+
+| Step | 250 | 500 | 750 | 1000 | 1250 | 1500 | 1750 | 2000 | 2250 | 2500 | 2750 | 3000 | 3250 | 3500 | 3750 | 3815 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Val | 3.611 | 2.212 | 1.958 | 1.834 | 1.756 | 1.700 | 1.656 | 1.622 | 1.591 | 1.567 | 1.548 | 1.532 | 1.520 | 1.509 | 1.503 | 1.501 |
+
+Nine tasks (50 tokens, temp 0.4, top_k 50, seed 0):
+- Step 2000: 2/9 correct, 1 close.
+- Final: **2/9 correct, 3 close.** ✅ load_json, main guard. 🟡 sum_list (filters `x > 0`),
+  reverse_string (calls itself on `s[::-1]`), unittest. ❌ factorial, find_max, count_words, squares.
+
+Lesson: the loss dropped from 2.13 to 1.50, but the task score did not move. Raw GitHub code rarely
+pairs a docstring with a short correct body, so the next gains need SFT and better data
+(python-edu style), not more raw tokens.

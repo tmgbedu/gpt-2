@@ -24,7 +24,7 @@ I built a small Python coding model end to end to learn how it works. I wrote my
 
 ## The architecture
 
-![Keera architecture](https://raw.githubusercontent.com/tmgbedu/gpt-2/main/architecture.png)
+![Keera architecture](https://raw.githubusercontent.com/tmgbedu/gpt-2/main/docs/blog/images/architecture.png)
 
 It has the same shape as GPT-2 small: a stack of 12 identical blocks that reads tokens and predicts the next one. Each block does two things, each with a residual connection:
 

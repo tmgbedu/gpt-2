@@ -3,6 +3,7 @@
     uv run python -m sample --prompt "def fibonacci(n):"
     uv run python -m sample --prompt-file start.py --samples 3 --temperature 0.6
     uv run python -m sample -i        # type prompts one after another; Enter twice runs one
+    uv run python -m sample --chat --checkpoint checkpoints/sft-1/checkpoint.pt --prompt "Write a function that reverses a string."
 """
 
 import argparse
@@ -11,6 +12,7 @@ from pathlib import Path
 import torch
 
 from model.transformer import Keera, ModelConfig
+from data.sft import END_ID, chat_prompt_ids
 from sample import generate, read_prompt, trim_to_block
 from tokenizer import load_tokenizer
 from trainer import load_checkpoint
@@ -30,6 +32,7 @@ def main() -> None:
     parser.add_argument("--device", default="cpu", help="cpu keeps the GPU free for training")
     parser.add_argument("-i", "--interactive", action="store_true", help="keep asking for prompts")
     parser.add_argument("--full", action="store_true", help="don't stop where the function ends")
+    parser.add_argument("--chat", action="store_true", help="fine-tuned model: the prompt is an instruction")
     args = parser.parse_args()
 
     tok = load_tokenizer(args.tokenizer)
@@ -43,10 +46,15 @@ def main() -> None:
 
     def complete(prompt: str) -> None:
         for i in range(args.samples):
+            print(f"# --- sample {i + 1} ---")
+            if args.chat:
+                new = generate(model, chat_prompt_ids(tok, prompt.strip()), args.max_new_tokens,
+                               args.temperature, args.top_k, stop_id=END_ID, generator=gen)
+                print(tok.decode(new))
+                continue
             new = generate(model, tok.encode(prompt).ids, args.max_new_tokens, args.temperature, args.top_k,
                            generator=gen)
             text = tok.decode(new, skip_special_tokens=False)
-            print(f"# --- sample {i + 1} ---")
             print(prompt + (text if args.full else trim_to_block(text)))
 
     if not args.interactive:

@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import Callable
 import json
 import math
 import os
@@ -14,6 +15,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from data import get_batch, load_tokens, random_starts, windows
+from data.sft import load_sft, sft_batch
 from model.transformer import Keera, ModelConfig
 
 Batch = tuple[torch.Tensor, torch.Tensor]
@@ -43,6 +45,8 @@ class TrainConfig:
     device: str = "mps"  # or "cuda" (each process uses GPU number LOCAL_RANK) or "cpu"
     precision: str = "fp32"  # or "bf16" autocast; measured no faster on M3 Pro MPS
     compile: bool = False  # torch.compile the model: faster on NVIDIA GPUs after a slow first step
+    data_format: str = "tokens"  # "tokens": random windows of train.bin; "sft": masked rows from data.sft
+    init_from: str = ""  # start from this checkpoint's weights (fresh optimizer, step 0), e.g. for SFT
 
 
 def make_optimizer(model: nn.Module, cfg: TrainConfig) -> torch.optim.AdamW:
@@ -174,6 +178,31 @@ def _truncate_log(path: Path, last_step: int) -> None:
     path.write_text("".join(ln + "\n" for ln in lines))
 
 
+def _load_data(cfg: TrainConfig, device: torch.device) -> tuple[Callable, Callable, list[Batch]]:
+    """(draw, read, val_batches) for the data format.
+
+    draw(generator) picks one microbatch's positions (cheap); read(positions) loads them.
+    """
+    if cfg.data_format == "tokens":
+        train_data = load_tokens(Path(cfg.data_dir) / "train.bin")
+        val_data = load_tokens(Path(cfg.data_dir) / "val.bin")
+        val = fixed_batches(val_data, cfg.eval_batches, cfg.micro_batch, cfg.block_size, cfg.seed + 1)
+        return (lambda gen: random_starts(train_data, cfg.micro_batch, cfg.block_size, gen),
+                lambda starts: windows(train_data, starts, cfg.block_size, device), val)
+    if cfg.data_format == "sft":
+        train_tokens, train_mask = load_sft(cfg.data_dir, "train")
+        val_tokens, val_mask = load_sft(cfg.data_dir, "val")
+        if train_tokens.shape[1] != cfg.block_size + 1:
+            raise ValueError(f"SFT rows hold {train_tokens.shape[1]} tokens; need block_size + 1 = {cfg.block_size + 1}")
+        val_gen = torch.Generator().manual_seed(cfg.seed + 1)
+        val = [sft_batch(val_tokens, val_mask, torch.randint(len(val_tokens), (cfg.micro_batch,),
+                                                              generator=val_gen).tolist())
+               for _ in range(cfg.eval_batches)]
+        return (lambda gen: torch.randint(len(train_tokens), (cfg.micro_batch,), generator=gen).tolist(),
+                lambda rows: sft_batch(train_tokens, train_mask, rows, device), val)
+    raise ValueError(f"data_format must be 'tokens' or 'sft', got {cfg.data_format!r}")
+
+
 def _setup_device(name: str) -> torch.device:
     if name != "cuda":
         return torch.device(name)
@@ -200,8 +229,7 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
     device = _setup_device(cfg.device)
     out_dir = Path(cfg.out_dir)
     ckpt_path, log_path = out_dir / "checkpoint.pt", out_dir / "log.jsonl"
-    train_data = load_tokens(Path(cfg.data_dir) / "train.bin")
-    val_data = load_tokens(Path(cfg.data_dir) / "val.bin")
+    draw, read, val_batches = _load_data(cfg, device)
 
     torch.manual_seed(cfg.seed)
     model = Keera(model_cfg).to(device)
@@ -211,7 +239,8 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
 
     if ckpt_path.exists():
         ckpt = load_checkpoint(ckpt_path)
-        if ckpt["train_config"] != asdict(cfg) or ckpt["model_config"] != asdict(model_cfg):
+        saved_cfg = {**asdict(TrainConfig()), **ckpt["train_config"]}  # options added later: defaults
+        if saved_cfg != asdict(cfg) or ckpt["model_config"] != asdict(model_cfg):
             raise ValueError(f"{ckpt_path} was made with a different config; use a new out_dir")
         model.load_state_dict(ckpt["model"])
         opt.load_state_dict(ckpt["optimizer"])
@@ -220,6 +249,11 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
         step, tokens = ckpt["step"], ckpt["tokens"]
         if main_process:
             _truncate_log(log_path, step)
+    elif cfg.init_from:
+        start = load_checkpoint(cfg.init_from)
+        if start["model_config"] != asdict(model_cfg):
+            raise ValueError(f"{cfg.init_from} has a different model config: {start['model_config']}")
+        model.load_state_dict(start["model"])
 
     # `model` stays the plain module: its weights are what we save and evaluate.
     # `runner` is what training calls: optionally compiled, and wrapped in DDP across GPUs.
@@ -227,7 +261,6 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
     if distributed:
         runner = DDP(runner, device_ids=[device.index] if device.type == "cuda" else None)
 
-    val_batches = fixed_batches(val_data, cfg.eval_batches, cfg.micro_batch, cfg.block_size, cfg.seed + 1)
     tokens_per_step = cfg.grad_accum * cfg.micro_batch * cfg.block_size
     if main_process:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -240,9 +273,8 @@ def train(cfg: TrainConfig, model_cfg: ModelConfig, stop_at: int | None = None) 
         t0 = time.perf_counter()
         # All processes draw the whole step's positions (same generator, same state), so the
         # data order doesn't depend on the number of GPUs; each reads only its own share.
-        starts = [random_starts(train_data, cfg.micro_batch, cfg.block_size, batch_gen)
-                  for _ in range(cfg.grad_accum)]
-        batches = [windows(train_data, s, cfg.block_size, device) for s in starts[share]]
+        positions = [draw(batch_gen) for _ in range(cfg.grad_accum)]
+        batches = [read(p) for p in positions[share]]
         loss = forward_backward(runner, batches, cfg.precision)
         lr = lr_at(step, cfg)
         grad_norm = optimizer_step(model, opt, lr, cfg.grad_clip)

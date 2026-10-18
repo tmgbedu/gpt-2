@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import torch
 
 from model.transformer import Keera
@@ -13,12 +15,13 @@ def generate(
     top_k: int | None = None,
     stop_id: int | None = EOT_ID,
     generator: torch.Generator | None = None,
+    stop_fn: Callable[[list[int]], bool] | None = None,
 ) -> list[int]:
     """Continue `prompt_ids` one token at a time; returns only the new tokens.
 
     temperature 0 = always the most likely token; higher = more random.
     top_k keeps only the k most likely tokens before sampling.
-    Stops early after `stop_id` (end of file by default).
+    Stops early after `stop_id` (end of file by default), or once stop_fn(new tokens) is True.
     """
     model.eval()
     device = next(model.parameters()).device
@@ -39,7 +42,7 @@ def generate(
             nxt = int(torch.multinomial(probs, 1, generator=generator))
         new.append(nxt)
         ids = torch.cat([ids, torch.tensor([[nxt]], device=device)], dim=1)
-        if nxt == stop_id:
+        if nxt == stop_id or (stop_fn is not None and stop_fn(new)):
             break
     return new
 

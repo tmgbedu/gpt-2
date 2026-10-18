@@ -306,3 +306,76 @@ def test_cli_trains_with_two_processes_under_torchrun(data_dir, tmp_path):
     log = [json.loads(line) for line in (out / "log.jsonl").read_text().splitlines()]
     assert [r["step"] for r in log] == [1, 2]
     assert load_checkpoint(out / "checkpoint.pt")["step"] == 2
+
+
+# --- fine-tuning (SFT): packed rows with a learn-mask, starting from a pretrained model ---
+
+
+@pytest.fixture
+def sft_dir(tmp_path):
+    # Rows of 17 tokens (block 16 + 1): a "question" of noise, then a counting "answer".
+    rng = np.random.default_rng(0)
+    d = tmp_path / "sft"
+    d.mkdir()
+    for split, n in (("train", 64), ("val", 8)):
+        tokens = np.tile(np.arange(17, dtype=np.uint16), (n, 1))
+        tokens[:, :5] = rng.integers(20, 64, (n, 5))
+        mask = np.zeros((n, 17), dtype=np.uint8)
+        mask[:, 5:] = 1
+        np.save(d / f"{split}_tokens.npy", tokens)
+        np.save(d / f"{split}_mask.npy", mask)
+    return d
+
+
+def _sft_cfg(sft_dir, out_dir, **kw):
+    return _cfg(sft_dir, out_dir, data_format="sft", **kw)
+
+
+def test_sft_learns_the_answers(sft_dir, tmp_path):
+    torch.manual_seed(0)
+    history = train(_sft_cfg(sft_dir, tmp_path / "run", max_steps=40, warmup_steps=5,
+                             eval_interval=40, checkpoint_interval=40), TINY)
+    assert history[0]["loss"] > math.log(64) - 0.5
+    assert history[-1]["val_loss"] < 0.5  # the counting answer is easy once only it is scored
+
+
+def test_sft_rows_must_be_block_size_plus_one(sft_dir, tmp_path):
+    with pytest.raises(ValueError, match="block_size"):
+        train(_sft_cfg(sft_dir, tmp_path / "run", block_size=8), TINY)
+
+
+def test_sft_resume_matches_uninterrupted_training(sft_dir, tmp_path):
+    full = train(_sft_cfg(sft_dir, tmp_path / "full"), TINY)
+    cfg = _sft_cfg(sft_dir, tmp_path / "resumed")
+    resumed = train(cfg, TINY, stop_at=3) + train(cfg, TINY)
+    assert [a["loss"] for a in full] == pytest.approx([b["loss"] for b in resumed], rel=1e-5)
+
+
+def test_init_from_starts_with_the_pretrained_weights_and_a_fresh_optimizer(data_dir, sft_dir, tmp_path):
+    train(_cfg(data_dir, tmp_path / "pre"), TINY)
+    pre = load_checkpoint(tmp_path / "pre" / "checkpoint.pt")
+    # lr 0: nothing moves, so the saved weights must be exactly the pretrained ones.
+    history = train(_sft_cfg(sft_dir, tmp_path / "sft", init_from=str(tmp_path / "pre" / "checkpoint.pt"),
+                             max_steps=1, max_lr=0.0, min_lr=0.0), TINY)
+    assert history[0]["step"] == 1  # step count starts over
+    sft = load_checkpoint(tmp_path / "sft" / "checkpoint.pt")
+    for k, v in pre["model"].items():
+        torch.testing.assert_close(sft["model"][k], v)
+
+
+def test_init_from_with_a_different_model_shape_is_refused(data_dir, sft_dir, tmp_path):
+    train(_cfg(data_dir, tmp_path / "pre", max_steps=1), TINY)
+    other = replace(TINY, n_layers=3)
+    with pytest.raises(ValueError, match="model config"):
+        train(_sft_cfg(sft_dir, tmp_path / "sft", init_from=str(tmp_path / "pre" / "checkpoint.pt")), other)
+
+
+def test_checkpoints_from_before_the_sft_options_still_resume(data_dir, tmp_path):
+    cfg = _cfg(data_dir, tmp_path / "run")
+    train(cfg, TINY, stop_at=3)
+    path = tmp_path / "run" / "checkpoint.pt"
+    ckpt = load_checkpoint(path)
+    for key in ("data_format", "init_from"):  # what an older checkpoint looks like
+        del ckpt["train_config"][key]
+    save_checkpoint(ckpt, path)
+    assert [r["step"] for r in train(cfg, TINY)] == [4, 5, 6]

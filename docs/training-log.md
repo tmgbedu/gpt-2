@@ -184,3 +184,64 @@ Nine tasks (50 tokens, temp 0.4, top_k 50, seed 0):
 Lesson: the loss dropped from 2.13 to 1.50, but the task score did not move. Raw GitHub code rarely
 pairs a docstring with a short correct body, so the next gains need SFT and better data
 (python-edu style), not more raw tokens.
+
+### HumanEval baseline (before fine-tuning)
+
+`uv run python -m humaneval` — 164 problems, greedy, up to 300 tokens, each answer run with its
+tests in a separate process (10 s limit). Scorer check: all 164 official solutions pass, empty
+bodies all fail.
+
+| Model | Solved | pass@1 |
+|---|---|---|
+| run-2b final (step 3815) | 3/164 | **1.8%** |
+| run-2b step 3500 | 2/164 | 1.2% |
+| run-2b step 3000 | 1/164 | 0.6% |
+
+Solved: HumanEval/23 (string length), /28 (join strings), /29 (filter by prefix) — one-liners
+common on GitHub. Other answers look like Python but miss the task (`return number / 2.0`).
+Below codeparrot-small's ~4% (110M, same data family). This is the number fine-tuning must beat.
+
+## SFT run 1 — instruction fine-tuning on the Mac GPU (sft-1)
+
+Start from run-2b final, fine-tune on `bigcode/self-oss-instruct-sc2-exec-filter-50k` (revision
+`356bb069…`), formatted `<|user|>{instruction}<|end|><|assistant|>{response}<|end|>`. Loss only on the
+response and its closing `<|end|>`. 49,549 train examples packed into 16,121 rows of 1,025 tokens
+(9.8M answer tokens, 96% packing); 1,012 held out for val. Build: `uv run python -m data.sft`.
+
+- 32 rows × 1,024 = 32,768 tokens per step, 1,511 steps ≈ 3 epochs, LR 1e-4 → 1e-5, warmup 50.
+- Mac M3 Pro GPU (mps), ~3,000 tok/s, ~11 s/step. Ran 13:28 → 18:08 (**4 h 40 min**), no errors.
+  Snapshots kept at steps 500, 1000, 1500.
+
+| Step | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 1000 | 1100 | 1200 | 1300 | 1400 | 1500 | 1511 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Val | 0.960 | 0.906 | 0.877 | 0.860 | 0.848 | 0.832 | 0.830 | 0.821 | 0.819 | 0.816 | 0.812 | 0.814 | 0.812 | 0.813 | 0.809 | 0.815 |
+
+Val flattened after ~1,100 steps (epoch 3) while train fell to ~0.48: the third pass mostly
+memorises. Two epochs would have been enough.
+
+### HumanEval after fine-tuning
+
+`uv run python -m humaneval --chat --checkpoint checkpoints/sft-1/checkpoint.pt --max-new-tokens 512`:
+the problem is asked in words ("Complete the following Python function." + the header in a code
+block), and the first code block of the answer is tested. Greedy.
+
+| Model | Solved | pass@1 |
+|---|---|---|
+| run-2b (pretrained only) | 3/164 | 1.8% |
+| **sft-1 final (step 1511)** | **9/164** | **5.5%** |
+
+Solved: /23, /28, /29 (same as before) plus /30 (positive numbers), /35 (max of list), /48 (is
+palindrome), /53 (add), /55 (fibonacci), /162 (md5 of a string). Now above codeparrot-small (3.8%),
+codeparrot 1.5B (4.0%) and GPT-Neo 1.3B (4.8%); below Codex 85M (8.2%) and CodeGen-350M-mono (12.8%).
+Caveat: the SFT data has not been checked for overlap with HumanEval yet.
+
+### Ten examples as chat questions (temp 0.2, seed 0, CPU)
+
+Every answer has the right shape: a short intro, one code block, an explanation, then `<|end|>`.
+Correct: read_lines. Nearly: csv (skips the header row unasked), fetch_json (no `import requests`),
+fibonacci (fib(0) = 1). Wrong: is_palindrome, is_even (became a prime check), Stack (duplicate
+methods, no pop), Point (dot product as "distance"), unique (set loses order), FizzBuzz (the same
+function repeated until the token limit).
+
+Lesson: fine-tuning taught the format in 100 steps and tripled HumanEval, but the logic is still
+the pretrained model's. Next gains: cleaner, textbook-like code data (phi-1), two epochs not three.

@@ -13,9 +13,10 @@ wheels/
 .pytest_cache/
 .DS_Store
 
-# Training data and model checkpoints (large, regenerable)
+# Training data (large, regenerable). Checkpoints are versioned through Git LFS.
 /data/
-/checkpoints/
+/checkpoints/bench/
+/checkpoints/**/*.tmp
 
 # Editor and agent settings (local only)
 /.claude/

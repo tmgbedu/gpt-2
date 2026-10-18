@@ -1,0 +1,154 @@
+warning: `VIRTUAL_ENV=/Users/ellite/.local/share/virtualenvs/job-alliance-ai-Fc5yYDlY` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+1 process(es) on mps | 32,768 tokens/step | 16 microbatches of 2 per process
+step     10 | loss 1.3056 | lr 2.00e-05 | grad 1.11 | 2,836 tok/s
+step     20 | loss 1.0589 | lr 4.00e-05 | grad 0.85 | 2,978 tok/s
+step     30 | loss 1.0670 | lr 6.00e-05 | grad 0.78 | 2,958 tok/s
+step     40 | loss 0.9974 | lr 8.00e-05 | grad 0.79 | 2,653 tok/s
+step     50 | loss 1.0104 | lr 1.00e-04 | grad 0.83 | 2,976 tok/s
+step     60 | loss 1.0030 | lr 1.00e-04 | grad 0.84 | 2,999 tok/s
+step     70 | loss 0.9696 | lr 1.00e-04 | grad 0.76 | 2,973 tok/s
+step     80 | loss 0.9669 | lr 9.99e-05 | grad 0.78 | 3,006 tok/s
+step     90 | loss 0.8969 | lr 9.98e-05 | grad 0.73 | 2,943 tok/s
+step    100 | loss 0.8883 | lr 9.98e-05 | grad 0.79 | 2,908 tok/s | val 0.9602
+step    110 | loss 0.8583 | lr 9.96e-05 | grad 0.74 | 3,015 tok/s
+step    120 | loss 0.9350 | lr 9.95e-05 | grad 0.71 | 2,924 tok/s
+step    130 | loss 0.8532 | lr 9.94e-05 | grad 0.76 | 2,709 tok/s
+step    140 | loss 0.8882 | lr 9.92e-05 | grad 0.75 | 2,717 tok/s
+step    150 | loss 0.8947 | lr 9.90e-05 | grad 0.74 | 2,936 tok/s
+step    160 | loss 0.8144 | lr 9.88e-05 | grad 0.74 | 2,916 tok/s
+step    170 | loss 0.8132 | lr 9.85e-05 | grad 0.74 | 2,852 tok/s
+step    180 | loss 0.8399 | lr 9.83e-05 | grad 0.67 | 2,835 tok/s
+step    190 | loss 0.8338 | lr 9.80e-05 | grad 0.72 | 2,541 tok/s
+step    200 | loss 0.8267 | lr 9.77e-05 | grad 0.73 | 2,779 tok/s | val 0.9061
+step    210 | loss 0.8506 | lr 9.74e-05 | grad 0.70 | 2,992 tok/s
+step    220 | loss 0.8297 | lr 9.71e-05 | grad 0.72 | 2,938 tok/s
+step    230 | loss 0.7785 | lr 9.67e-05 | grad 0.71 | 3,012 tok/s
+step    240 | loss 0.7937 | lr 9.63e-05 | grad 0.70 | 3,006 tok/s
+step    250 | loss 0.8553 | lr 9.59e-05 | grad 0.75 | 3,007 tok/s
+step    260 | loss 0.8174 | lr 9.55e-05 | grad 0.68 | 3,036 tok/s
+step    270 | loss 0.7314 | lr 9.51e-05 | grad 0.63 | 3,030 tok/s
+step    280 | loss 0.8184 | lr 9.46e-05 | grad 0.72 | 2,964 tok/s
+step    290 | loss 0.7779 | lr 9.42e-05 | grad 0.68 | 2,948 tok/s
+step    300 | loss 0.8578 | lr 9.37e-05 | grad 0.72 | 2,855 tok/s | val 0.8767
+step    310 | loss 0.7073 | lr 9.32e-05 | grad 0.66 | 2,969 tok/s
+step    320 | loss 0.7241 | lr 9.27e-05 | grad 0.69 | 2,955 tok/s
+step    330 | loss 0.7863 | lr 9.21e-05 | grad 0.70 | 2,970 tok/s
+step    340 | loss 0.7495 | lr 9.16e-05 | grad 0.68 | 2,970 tok/s
+step    350 | loss 0.8026 | lr 9.10e-05 | grad 0.73 | 2,961 tok/s
+step    360 | loss 0.7407 | lr 9.04e-05 | grad 0.72 | 2,968 tok/s
+step    370 | loss 0.7599 | lr 8.98e-05 | grad 0.71 | 2,941 tok/s
+step    380 | loss 0.7760 | lr 8.92e-05 | grad 0.68 | 2,684 tok/s
+step    390 | loss 0.7288 | lr 8.85e-05 | grad 0.70 | 2,970 tok/s
+step    400 | loss 0.7533 | lr 8.79e-05 | grad 0.73 | 2,965 tok/s | val 0.8598
+step    410 | loss 0.7402 | lr 8.72e-05 | grad 0.70 | 3,056 tok/s
+step    420 | loss 0.7452 | lr 8.65e-05 | grad 0.72 | 3,038 tok/s
+step    430 | loss 0.7115 | lr 8.58e-05 | grad 0.69 | 3,050 tok/s
+step    440 | loss 0.7196 | lr 8.51e-05 | grad 0.71 | 2,748 tok/s
+step    450 | loss 0.7517 | lr 8.44e-05 | grad 0.68 | 2,969 tok/s
+step    460 | loss 0.7059 | lr 8.37e-05 | grad 0.71 | 2,919 tok/s
+step    470 | loss 0.7123 | lr 8.29e-05 | grad 0.68 | 2,910 tok/s
+step    480 | loss 0.6941 | lr 8.22e-05 | grad 0.67 | 3,004 tok/s
+step    490 | loss 0.6788 | lr 8.14e-05 | grad 0.68 | 2,957 tok/s
+step    500 | loss 0.6858 | lr 8.06e-05 | grad 0.69 | 2,985 tok/s | val 0.8482
+step    510 | loss 0.6632 | lr 7.98e-05 | grad 0.65 | 2,940 tok/s
+step    520 | loss 0.7051 | lr 7.90e-05 | grad 0.70 | 3,007 tok/s
+step    530 | loss 0.6819 | lr 7.81e-05 | grad 0.69 | 3,016 tok/s
+step    540 | loss 0.6848 | lr 7.73e-05 | grad 0.70 | 2,981 tok/s
+step    550 | loss 0.6867 | lr 7.65e-05 | grad 0.73 | 2,942 tok/s
+step    560 | loss 0.6817 | lr 7.56e-05 | grad 0.72 | 2,933 tok/s
+step    570 | loss 0.6723 | lr 7.47e-05 | grad 0.72 | 3,045 tok/s
+step    580 | loss 0.7959 | lr 7.39e-05 | grad 0.72 | 3,018 tok/s
+step    590 | loss 0.6404 | lr 7.30e-05 | grad 0.66 | 2,932 tok/s
+step    600 | loss 0.7218 | lr 7.21e-05 | grad 0.76 | 2,948 tok/s | val 0.8323
+step    610 | loss 0.6681 | lr 7.12e-05 | grad 0.69 | 3,033 tok/s
+step    620 | loss 0.6656 | lr 7.03e-05 | grad 0.71 | 3,033 tok/s
+step    630 | loss 0.6819 | lr 6.94e-05 | grad 0.70 | 2,980 tok/s
+step    640 | loss 0.6628 | lr 6.84e-05 | grad 0.69 | 2,983 tok/s
+step    650 | loss 0.6263 | lr 6.75e-05 | grad 0.68 | 3,030 tok/s
+step    660 | loss 0.6641 | lr 6.66e-05 | grad 0.70 | 2,950 tok/s
+step    670 | loss 0.6651 | lr 6.56e-05 | grad 0.70 | 2,981 tok/s
+step    680 | loss 0.6322 | lr 6.47e-05 | grad 0.68 | 2,919 tok/s
+step    690 | loss 0.6292 | lr 6.38e-05 | grad 0.68 | 3,035 tok/s
+step    700 | loss 0.6929 | lr 6.28e-05 | grad 0.77 | 3,020 tok/s | val 0.8302
+step    710 | loss 0.5926 | lr 6.18e-05 | grad 0.65 | 2,996 tok/s
+step    720 | loss 0.6715 | lr 6.09e-05 | grad 0.72 | 2,952 tok/s
+step    730 | loss 0.5936 | lr 5.99e-05 | grad 0.69 | 2,975 tok/s
+step    740 | loss 0.6122 | lr 5.90e-05 | grad 0.67 | 2,941 tok/s
+step    750 | loss 0.6356 | lr 5.80e-05 | grad 0.70 | 2,980 tok/s
+step    760 | loss 0.6042 | lr 5.70e-05 | grad 0.70 | 3,034 tok/s
+step    770 | loss 0.5612 | lr 5.61e-05 | grad 0.67 | 2,926 tok/s
+step    780 | loss 0.5990 | lr 5.51e-05 | grad 0.71 | 2,991 tok/s
+step    790 | loss 0.5919 | lr 5.41e-05 | grad 0.67 | 3,070 tok/s
+step    800 | loss 0.6275 | lr 5.32e-05 | grad 0.70 | 3,047 tok/s | val 0.8212
+step    810 | loss 0.6206 | lr 5.22e-05 | grad 0.70 | 3,044 tok/s
+step    820 | loss 0.5715 | lr 5.12e-05 | grad 0.68 | 3,039 tok/s
+step    830 | loss 0.6203 | lr 5.03e-05 | grad 0.73 | 3,055 tok/s
+step    840 | loss 0.5922 | lr 4.93e-05 | grad 0.74 | 3,050 tok/s
+step    850 | loss 0.5916 | lr 4.83e-05 | grad 0.69 | 3,057 tok/s
+step    860 | loss 0.6218 | lr 4.74e-05 | grad 0.73 | 3,053 tok/s
+step    870 | loss 0.5924 | lr 4.64e-05 | grad 0.73 | 3,046 tok/s
+step    880 | loss 0.6040 | lr 4.55e-05 | grad 0.71 | 3,056 tok/s
+step    890 | loss 0.5409 | lr 4.45e-05 | grad 0.68 | 3,048 tok/s
+step    900 | loss 0.6743 | lr 4.36e-05 | grad 0.80 | 3,046 tok/s | val 0.8189
+step    910 | loss 0.6021 | lr 4.27e-05 | grad 0.71 | 3,050 tok/s
+step    920 | loss 0.6211 | lr 4.17e-05 | grad 0.73 | 3,054 tok/s
+step    930 | loss 0.5954 | lr 4.08e-05 | grad 0.69 | 3,051 tok/s
+step    940 | loss 0.5374 | lr 3.99e-05 | grad 0.70 | 3,055 tok/s
+step    950 | loss 0.5916 | lr 3.90e-05 | grad 0.73 | 2,753 tok/s
+step    960 | loss 0.5588 | lr 3.81e-05 | grad 0.68 | 2,974 tok/s
+step    970 | loss 0.6393 | lr 3.72e-05 | grad 0.78 | 2,917 tok/s
+step    980 | loss 0.5362 | lr 3.63e-05 | grad 0.69 | 2,932 tok/s
+step    990 | loss 0.5848 | lr 3.54e-05 | grad 0.71 | 2,921 tok/s
+step   1000 | loss 0.5313 | lr 3.46e-05 | grad 0.68 | 3,030 tok/s | val 0.8164
+step   1010 | loss 0.5344 | lr 3.37e-05 | grad 0.68 | 3,033 tok/s
+step   1020 | loss 0.5393 | lr 3.29e-05 | grad 0.71 | 3,031 tok/s
+step   1030 | loss 0.5478 | lr 3.20e-05 | grad 0.70 | 3,029 tok/s
+step   1040 | loss 0.5729 | lr 3.12e-05 | grad 0.76 | 3,030 tok/s
+step   1050 | loss 0.5578 | lr 3.04e-05 | grad 0.70 | 3,027 tok/s
+step   1060 | loss 0.5832 | lr 2.96e-05 | grad 0.73 | 3,010 tok/s
+step   1070 | loss 0.5963 | lr 2.88e-05 | grad 0.75 | 3,031 tok/s
+step   1080 | loss 0.5534 | lr 2.80e-05 | grad 0.72 | 3,016 tok/s
+step   1090 | loss 0.5586 | lr 2.72e-05 | grad 0.71 | 3,026 tok/s
+step   1100 | loss 0.5496 | lr 2.65e-05 | grad 0.72 | 3,031 tok/s | val 0.8122
+step   1110 | loss 0.5159 | lr 2.57e-05 | grad 0.68 | 3,034 tok/s
+step   1120 | loss 0.5519 | lr 2.50e-05 | grad 0.73 | 3,023 tok/s
+step   1130 | loss 0.5174 | lr 2.43e-05 | grad 0.72 | 3,035 tok/s
+step   1140 | loss 0.5542 | lr 2.36e-05 | grad 0.74 | 3,033 tok/s
+step   1150 | loss 0.5358 | lr 2.29e-05 | grad 0.68 | 3,030 tok/s
+step   1160 | loss 0.5547 | lr 2.22e-05 | grad 0.75 | 3,029 tok/s
+step   1170 | loss 0.5707 | lr 2.16e-05 | grad 0.76 | 3,021 tok/s
+step   1180 | loss 0.5367 | lr 2.09e-05 | grad 0.71 | 3,032 tok/s
+step   1190 | loss 0.5274 | lr 2.03e-05 | grad 0.75 | 3,030 tok/s
+step   1200 | loss 0.5386 | lr 1.97e-05 | grad 0.73 | 3,011 tok/s | val 0.8138
+step   1210 | loss 0.5971 | lr 1.91e-05 | grad 0.78 | 3,021 tok/s
+step   1220 | loss 0.5602 | lr 1.85e-05 | grad 0.75 | 3,026 tok/s
+step   1230 | loss 0.5382 | lr 1.80e-05 | grad 0.76 | 3,032 tok/s
+step   1240 | loss 0.4961 | lr 1.74e-05 | grad 0.72 | 3,009 tok/s
+step   1250 | loss 0.5250 | lr 1.69e-05 | grad 0.71 | 3,031 tok/s
+step   1260 | loss 0.5365 | lr 1.64e-05 | grad 0.74 | 3,029 tok/s
+step   1270 | loss 0.5633 | lr 1.59e-05 | grad 0.73 | 3,031 tok/s
+step   1280 | loss 0.6057 | lr 1.54e-05 | grad 0.83 | 3,021 tok/s
+step   1290 | loss 0.5772 | lr 1.50e-05 | grad 0.77 | 3,028 tok/s
+step   1300 | loss 0.5283 | lr 1.46e-05 | grad 0.73 | 3,024 tok/s | val 0.8122
+step   1310 | loss 0.5017 | lr 1.41e-05 | grad 0.70 | 3,020 tok/s
+step   1320 | loss 0.5904 | lr 1.37e-05 | grad 0.80 | 2,980 tok/s
+step   1330 | loss 0.4978 | lr 1.34e-05 | grad 0.69 | 3,092 tok/s
+step   1340 | loss 0.5352 | lr 1.30e-05 | grad 0.73 | 3,084 tok/s
+step   1350 | loss 0.5000 | lr 1.27e-05 | grad 0.73 | 3,098 tok/s
+step   1360 | loss 0.5235 | lr 1.24e-05 | grad 0.73 | 3,096 tok/s
+step   1370 | loss 0.5411 | lr 1.21e-05 | grad 0.75 | 3,095 tok/s
+step   1380 | loss 0.4560 | lr 1.18e-05 | grad 0.69 | 3,093 tok/s
+step   1390 | loss 0.4954 | lr 1.15e-05 | grad 0.73 | 3,083 tok/s
+step   1400 | loss 0.5323 | lr 1.13e-05 | grad 0.74 | 3,097 tok/s | val 0.8132
+step   1410 | loss 0.5692 | lr 1.11e-05 | grad 0.82 | 3,098 tok/s
+step   1420 | loss 0.5306 | lr 1.09e-05 | grad 0.72 | 3,096 tok/s
+step   1430 | loss 0.4977 | lr 1.07e-05 | grad 0.72 | 3,095 tok/s
+step   1440 | loss 0.5349 | lr 1.05e-05 | grad 0.76 | 3,101 tok/s
+step   1450 | loss 0.5126 | lr 1.04e-05 | grad 0.73 | 3,099 tok/s
+step   1460 | loss 0.4915 | lr 1.03e-05 | grad 0.70 | 3,095 tok/s
+step   1470 | loss 0.5197 | lr 1.02e-05 | grad 0.75 | 3,090 tok/s
+step   1480 | loss 0.5300 | lr 1.01e-05 | grad 0.75 | 3,097 tok/s
+step   1490 | loss 0.5469 | lr 1.00e-05 | grad 0.75 | 3,093 tok/s
+step   1500 | loss 0.4802 | lr 1.00e-05 | grad 0.71 | 3,098 tok/s | val 0.8090
+step   1510 | loss 0.4860 | lr 1.00e-05 | grad 0.74 | 3,098 tok/s
+step   1511 | loss 0.4721 | lr 1.00e-05 | grad 0.70 | 3,091 tok/s | val 0.8145

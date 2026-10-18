@@ -1,0 +1,31 @@
+warning: `VIRTUAL_ENV=/Users/ellite/.local/share/virtualenvs/job-alliance-ai-Fc5yYDlY` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+step     10 | loss 10.4068 | lr 2.00e-04 | grad 23.57 | 3,041 tok/s
+step     20 | loss 7.3881 | lr 4.00e-04 | grad 0.92 | 3,040 tok/s
+step     30 | loss 7.1591 | lr 6.00e-04 | grad 1.41 | 3,019 tok/s
+step     40 | loss 6.6723 | lr 5.99e-04 | grad 0.89 | 3,061 tok/s
+step     50 | loss 6.3456 | lr 5.93e-04 | grad 0.95 | 3,036 tok/s | val 6.6134
+step     60 | loss 6.2351 | lr 5.85e-04 | grad 1.28 | 3,023 tok/s
+step     70 | loss 5.9935 | lr 5.72e-04 | grad 0.82 | 3,067 tok/s
+step     80 | loss 5.8567 | lr 5.57e-04 | grad 0.79 | 3,068 tok/s
+step     90 | loss 5.8993 | lr 5.38e-04 | grad 0.93 | 3,064 tok/s
+step    100 | loss 5.5001 | lr 5.17e-04 | grad 0.84 | 3,065 tok/s | val 5.8624
+step    110 | loss 5.5976 | lr 4.93e-04 | grad 0.86 | 3,034 tok/s
+step    120 | loss 5.4160 | lr 4.67e-04 | grad 0.90 | 3,002 tok/s
+step    130 | loss 5.3536 | lr 4.39e-04 | grad 0.75 | 3,051 tok/s
+step    140 | loss 5.3555 | lr 4.09e-04 | grad 0.89 | 3,047 tok/s
+step    150 | loss 5.0889 | lr 3.79e-04 | grad 0.92 | 3,039 tok/s | val 5.4757
+step    160 | loss 5.1724 | lr 3.47e-04 | grad 0.75 | 3,064 tok/s
+step    170 | loss 5.1429 | lr 3.16e-04 | grad 0.69 | 3,065 tok/s
+step    180 | loss 4.9383 | lr 2.84e-04 | grad 0.69 | 3,065 tok/s
+step    190 | loss 4.8485 | lr 2.54e-04 | grad 0.77 | 3,063 tok/s
+step    200 | loss 5.0587 | lr 2.24e-04 | grad 0.68 | 3,063 tok/s | val 5.2186
+step    210 | loss 4.7953 | lr 1.96e-04 | grad 0.63 | 3,065 tok/s
+step    220 | loss 4.8433 | lr 1.70e-04 | grad 0.68 | 3,064 tok/s
+step    230 | loss 4.9593 | lr 1.45e-04 | grad 0.56 | 3,065 tok/s
+step    240 | loss 4.9213 | lr 1.24e-04 | grad 0.56 | 3,064 tok/s
+step    250 | loss 4.7388 | lr 1.05e-04 | grad 0.61 | 3,064 tok/s | val 5.0626
+step    260 | loss 4.9450 | lr 8.89e-05 | grad 0.60 | 3,065 tok/s
+step    270 | loss 4.6229 | lr 7.64e-05 | grad 0.59 | 3,064 tok/s
+step    280 | loss 4.6719 | lr 6.73e-05 | grad 0.72 | 3,067 tok/s
+step    290 | loss 4.8159 | lr 6.18e-05 | grad 0.69 | 3,056 tok/s
+step    300 | loss 4.6295 | lr 6.00e-05 | grad 0.76 | 3,062 tok/s | val 4.9830

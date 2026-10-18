@@ -1,0 +1,9 @@
+Generated with the built-in image_gen tool.
+
+Use case: ads-marketing
+Asset type: minimal editorial cover image for a personal technical blog about training Keera, a 97.5M-parameter Python coding language model from scratch.
+Primary request: Create a polished minimalistic landscape blog cover, aspect ratio approximately 16:9. Restrained editorial typography with generous empty space and one small abstract illustration of a stack of twelve thin transformer layers connected by a single line. This is a personal engineering experiment, not a corporate AI advertisement.
+Style: flat print-like graphic, crisp typography, quiet sophisticated composition. Neutral light background, dark text, one restrained accent for the layer motif. No photorealism.
+Text verbatim: main title "A small model," on one line, "built from scratch." on the next. Small supporting line "97.5M parameters · ~$1.40 pre-training GPU time". Small label "KEERA".
+Composition: clear visual hierarchy, title dominant, small layer motif complements the title without crowding it. All text inset generously from edges, readable at thumbnail size.
+Avoid: robots, brains, glowing nodes, decorative code, gradients, glossy 3D, extra text, benchmark comparisons, watermarks.

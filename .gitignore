@@ -20,3 +20,4 @@ wheels/
 # Editor and agent settings (local only)
 /.claude/
 /.vscode/
+/.mcp.json

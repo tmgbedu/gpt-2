@@ -16,3 +16,7 @@ wheels/
 # Training data and model checkpoints (large, regenerable)
 /data/
 /checkpoints/
+
+# Editor and agent settings (local only)
+/.claude/
+/.vscode/
